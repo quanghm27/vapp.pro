@@ -2,16 +2,22 @@
     <div style="height: 430px">
         <div class="col-md-3">
             <select class="form-control" v-model="selectedDate">
-                <option v-for="(value, name, index) in historyDates">{{ name }}</option>
+                <option v-for="(value, name, index) in historyDates" :key="index">{{ name }}</option>
             </select>
         </div>
-        <line-chart  v-if="chartdata!= null" :chartdata="chartdata" :options="options" :key="chartKey"></line-chart>
+        <LineChart  v-if="chartdata!= null" :chartdata="chartdata" :options="options" :key="chartKey"></LineChart>
     </div>
 </template>
 <script>
+    import moment from 'moment'
+    import _ from 'lodash'
+    import LineChart from './LineChart.vue'
+
     const API_HISTORY = 'http://bbc-api.gl-sci.tech/api/Common/GetDataHistoryByShareKeys'
+
     export default {
         props:['shareKey', 'minTemp', 'maxTemp'],
+        components: {LineChart},
         data() {
             return {
                 historyDates: null,
@@ -54,11 +60,16 @@
                     'fromDate': moment().subtract(30, 'days'),
                     'toDate': moment()
                 }]
-                let result = await axios.post(API_HISTORY, params)
-                if (result.data.status) {
-                    let datas = result.data.data.reduce(function(acc, data, index) {
-                        const date = moment(data.updateTime).date()
-                        const month = moment(data.updateTime).month() + 1
+                let result = await fetch(API_HISTORY, {
+                    method: 'post',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(params)
+                }).then(r => r.json())
+                if (result.status) {
+                    let reverse = _.orderBy(result.data, 'id', 'desc')
+                    let datas = reverse.reduce(function(acc, data) {
                         const day = moment(data.updateTime).format('LL')
                         const history = {
                             dataValue : data.dataValue,
@@ -80,7 +91,7 @@
         computed: {
         },
         watch: {
-            selectedDate(newVal, oldVal) {
+            selectedDate(newVal) {
                 let datas = this.historyDates[newVal]
                 let data = _.values(_.mapValues(datas, function(item){ return item.dataValue}))
                 let labels = _.values(_.mapValues(datas, function(item){ return item.time}))
